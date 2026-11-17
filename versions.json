@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "experimental-unvalidated",
+  "checked_on": "2026-11-17",
+  "vllm_repository": "https://github.com/swiss-ai/vllm.git",
+  "vllm_commit": "a601a9d998ddeb488f0c17e8512874b116aa7658",
+  "transformers_repository": "https://github.com/swiss-ai/transformers.git",
+  "transformers_commit": "3797303dda74844e3d1f8977ff5518bb91f818b4",
+  "default_gpu_arch": "gfx950",
+  "rocm_base_image": null,
+  "base_image_note": "Select a ROCm development image compatible with this vLLM revision and provide its real immutable digest. No base image has been validated by this project.",
+  "model_weights_bundled": false,
+  "container_build_tested": false,
+  "gpu_inference_tested": false
+}

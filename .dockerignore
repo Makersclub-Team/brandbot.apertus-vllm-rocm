@@ -1,0 +1,14 @@
+.git
+.build
+__pycache__
+**/__pycache__
+.env
+.env.*
+results
+models
+*.safetensors
+*.gguf
+*.bin
+tests
+docs
+.github

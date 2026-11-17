@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-11-17",
+  "status": "source-checks-passed-runtime-unvalidated",
+  "python_syntax": "passed",
+  "offline_tests": {
+    "run": 14,
+    "passed": 14,
+    "failed": 0
+  },
+  "container_build": "not_run",
+  "runtime_import_check": "not_run",
+  "gpu_execution": "not_run",
+  "model_inference": "not_run",
+  "rocm_base_image": "not_selected",
+  "registry_image": "not_published",
+  "scope": "Offline build-plan contract and smoke-protocol parsing only. These results do not establish container or GPU compatibility.",
+  "test_output": "test_dry_run_is_offline_and_does_not_claim_build (test_build_contract.BuildContractTests.test_dry_run_is_offline_and_does_not_claim_build) ... ok\ntest_floating_base_is_rejected (test_build_contract.BuildContractTests.test_floating_base_is_rejected) ... ok\ntest_invalid_architecture_is_rejected (test_build_contract.BuildContractTests.test_invalid_architecture_is_rejected) ... ok\ntest_completed_text_stream (test_smoke_protocol.SmokeProtocolTests.test_completed_text_stream) ... ok\ntest_expected_numeric_result (test_smoke_protocol.SmokeProtocolTests.test_expected_numeric_result) ... ok\ntest_expired_stream_budget_fails (test_smoke_protocol.SmokeProtocolTests.test_expired_stream_budget_fails) ... ok\ntest_final_text (test_smoke_protocol.SmokeProtocolTests.test_final_text) ... ok\ntest_invalid_nonstream_responses_fail (test_smoke_protocol.SmokeProtocolTests.test_invalid_nonstream_responses_fail) ... ok\ntest_malformed_sse_json_fails (test_smoke_protocol.SmokeProtocolTests.test_malformed_sse_json_fails) ... ok\ntest_missing_done_marker_fails (test_smoke_protocol.SmokeProtocolTests.test_missing_done_marker_fails) ... ok\ntest_missing_successful_finish_reason_fails (test_smoke_protocol.SmokeProtocolTests.test_missing_successful_finish_reason_fails) ... ok\ntest_reasoning_without_visible_text_does_not_pass (test_smoke_protocol.SmokeProtocolTests.test_reasoning_without_visible_text_does_not_pass) ... ok\ntest_sse_api_error_fails (test_smoke_protocol.SmokeProtocolTests.test_sse_api_error_fails) ... ok\ntest_sse_crlf_comments_and_multiline_fields (test_smoke_protocol.SmokeProtocolTests.test_sse_crlf_comments_and_multiline_fields) ... ok\n\n----------------------------------------------------------------------\nRan 14 tests in 0.088s\n\nOK\n"
+}
