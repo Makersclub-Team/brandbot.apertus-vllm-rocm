@@ -2,20 +2,49 @@
 
 ## Current status
 
-At preparation on **17 November 2026**, and after re-pinning to Swiss AI's `apertus-1-5` vLLM branch (ROCm 10.0.0) on **18 November 2026**, this bundle has **not built an image or run inference on a GPU**. The build recipe, target architecture, and smoke scripts are implementation work, not evidence of a working deployment. Update this document with actual results as each stage completes; never infer a later stage from an earlier one.
+On **18 November 2026** an image built from this repository at commit `e6c3d7a` ran on one **AMD Instinct MI350X** (RunPod). Apertus 1.5 8B served text, tool calls and image input. Audio input failed because the image lacked vLLM's audio extra; the next commit adds it and a build-time audio check, but that fix has **not yet been re-tested on a GPU**. Nothing else below has been run. Update this document with actual results as each stage completes; never infer a later stage from an earlier one.
 
 ## Validation stages
 
-| Stage | Evidence required | Initial status |
+| Stage | Evidence required | Status |
 | --- | --- | --- |
-| Source checks | Build-wrapper argument validation, script syntax, manifest consistency, and inspection of the dry-run command | Passed: 18 offline tests and Python syntax checks; see ../source-checks.json |
-| Image build | Complete successful build log, resolved dependencies, final image digest | Not run |
-| Runtime imports | `scripts/check_runtime.py` runs inside that exact image; reports installed versions, architecture availability, and parser availability | Not run |
-| GPU text | Model loads on the intended AMD GPU and produces sensible text through the API | Not run |
-| Tools and streaming | Correct structured tool calls, complete streamed responses, and successful tool-result continuation | Not run |
-| Image and audio | Correct responses to known media fixtures through the documented multimodal API | Not run |
+| Source checks | Build-wrapper argument validation, script syntax, manifest consistency, and inspection of the dry-run command | Passed: offline tests and Python syntax checks; see ../source-checks.json |
+| Image build | Complete successful build log, resolved dependencies, final image digest | Passed for `e6c3d7a` (`--gpu-arch "gfx942;gfx950"`, AMD prebuilt base, 18 Nov 2026) |
+| Runtime imports | `scripts/check_runtime.py` runs inside that exact image | Passed at build time, and with `--require-gpu` on the MI350X |
+| GPU text | Model loads on the intended AMD GPU and produces sensible text through the API | Passed: 8B on MI350X (English and German answers correct) |
+| Tools and streaming | Correct structured tool calls, complete streamed responses, and successful tool-result continuation | Partial: one tool call correct; streaming and tool-result continuation not run |
+| Image and audio | Correct responses to known media fixtures through the documented multimodal API | Image passed (one synthetic fixture). Audio failed on `e6c3d7a` (`Please install vllm[audio]`); fix not yet GPU-tested |
 | Tensor parallelism | Successful model load and requests with the advertised TP configuration | Not run |
-| Concurrency | Recorded overlapping requests complete with the stated context sizes and no unexplained failures | Not run |
+| Concurrency | Recorded overlapping requests complete with the stated context sizes and no unexplained failures | Partial: 16 and 64 concurrent 512-token requests, no errors |
+| MI300X (gfx942) | Any of the above on MI300X | Not run |
+| 70B | Any of the above with Apertus 1.5 70B | Not run |
+
+## Result: MI350X, 18 November 2026
+
+| Item | Value |
+| --- | --- |
+| GPU | 1 × AMD Instinct MI350X, gfx950, 288 GB (RunPod Secure Cloud) |
+| Host driver | amdgpu 7.1.3 (`rocm-smi`) |
+| Image | built from this repository at `e6c3d7a`; engine digest `sha256:4e2e60f72546aad52875009a75ad4f5ad882f9e430e9aff2097119ae8fe4972f` |
+| Base | `rocm/vllm-dev:base@sha256:ee81d993f614a9924149c909525be35eec1bcc036458a6047cc90786e5f5b18f` |
+| Versions | Python 3.12.16, PyTorch 2.13.0+rocm10.0.0, Transformers 5.14.0.dev0 (`3797303`), vLLM `640bad3` (reports `0.23.1rc1.dev6474+g640bad371`) |
+| Model | `swiss-ai/Apertus-v1.5-8B` at `1519de0ae7f3d114879291810a58259966f64c99`, bfloat16, TP=1 |
+| Launch | `vllm serve swiss-ai/Apertus-v1.5-8B --max-model-len 16384 --enable-auto-tool-choice --tool-call-parser apertus` (defaults otherwise; weights preloaded, `HF_HUB_OFFLINE=1`) |
+
+| Check | Result |
+| --- | --- |
+| `check_runtime.py --require-gpu` | passed (all checks, GPU FP32 matmul on gfx950) |
+| bf16 matmul 8192×8192 (PyTorch) | about 1,131 TFLOPS |
+| vLLM with a small control model (Qwen2.5-0.5B-Instruct) | served; attention backend `ROCM_ATTN`, AITER kernels loaded |
+| Model load | weights 2 s, 17.23 GiB on the GPU; server ready about 3 minutes after container start |
+| Chat, English | "The capital of Switzerland is Bern, and the language most widely spoken there is German." |
+| Chat, German ("17 mal 23?") | "17 mal 23 ergibt 391." (correct) |
+| Tool call (`get_weather`, `tool_choice: auto`) | `get_weather({"city": "Zurich"})`, finish reason `tool_calls` |
+| Image (224×224 solid red PNG, "What colour?") | "Red" |
+| Audio (synthetic 16 kHz WAV, `input_audio` and `audio_url`) | HTTP 500 `Please install vllm[audio] for audio support` |
+| Throughput, 512 output tokens, `ignore_eos` | 1 request about 245 tok/s; 16 concurrent about 2,700 tok/s; 64 concurrent about 9,300 tok/s; no errors (measured through the RunPod HTTP proxy, includes network time, no warm-up control) |
+
+Logged warnings, with correct results despite them: `hipblasLt` `HIPBLAS_STATUS_INTERNAL_ERROR` for some GEMM shapes during graph capture; xIELU uses the PyTorch fallback (the fused kernel is CUDA-only); aiter recommends disabling NUMA balancing on the host.
 
 ## Establish the runtime first
 

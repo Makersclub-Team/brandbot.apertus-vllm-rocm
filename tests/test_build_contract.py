@@ -78,6 +78,15 @@ class BuildContractTests(unittest.TestCase):
         for package, spec in versions["transformers_runtime_pins"].items():
             self.assertIn(f'"{package}{spec}"', dockerfile)
 
+    def test_audio_extra_is_installed_and_checked(self):
+        # Without vllm[audio], audio requests fail only at request time.
+        dockerfile = (ROOT / "Dockerfile").read_text()
+        for package in ("av", "scipy", "soundfile", "soxr", "mistral_common[audio]"):
+            self.assertIn(package, dockerfile)
+        self.assertIn("-c /tmp/stack-constraints.txt", dockerfile)
+        check = (ROOT / "scripts" / "check_runtime.py").read_text()
+        self.assertIn('run("vllm.audio_support", check_audio)', check)
+
     def test_invalid_architecture_is_rejected(self):
         result = self.invoke("--base-image", "example.invalid/base@sha256:" + "a" * 64,
                              "--gpu-arch", "unrecognized", "--dry-run")

@@ -9,15 +9,18 @@ ARG APERTUS_TRANSFORMERS_COMMIT
 ARG APERTUS_TRANSFORMERS_REPOSITORY=https://github.com/swiss-ai/transformers.git
 
 LABEL org.opencontainers.image.title="Community Apertus 1.5 ROCm integration" \
-      org.opencontainers.image.description="Experimental build recipe; GPU inference not validated" \
+      org.opencontainers.image.description="Experimental build; partially validated on one MI350X, see docs/VALIDATION.md" \
       org.apertus.vllm.commit="${APERTUS_VLLM_COMMIT}" \
       org.apertus.transformers.commit="${APERTUS_TRANSFORMERS_COMMIT}" \
-      org.apertus.validation="unvalidated"
+      org.apertus.validation="partial"
 
 USER root
 WORKDIR /opt/apertus
 
-# Install only the pinned Transformers source. Preserve the base's ROCm torch.
+# Install the pinned Transformers source and vLLM's audio extra (vllm[audio]:
+# av, scipy, soundfile, soxr, mistral_common[audio]); without the latter, audio
+# requests fail with "Please install vllm[audio] for audio support". The base's
+# ROCm torch and numpy are pinned as constraints so neither can be replaced.
 # Missing/incompatible Python dependencies must be fixed explicitly; pip check
 # below fails instead of silently replacing the GPU stack. The pinned revision
 # (5.14.0.dev0) refuses to import unless huggingface-hub<2.0 and
@@ -31,8 +34,12 @@ RUN git clone --filter=blob:none --no-checkout \
     && git -C transformers-src fetch origin "${APERTUS_TRANSFORMERS_COMMIT}" \
     && git -C transformers-src checkout --detach "${APERTUS_TRANSFORMERS_COMMIT}" \
     && test "$(git -C transformers-src rev-parse HEAD)" = "${APERTUS_TRANSFORMERS_COMMIT}" \
-    && uv pip install --system ./transformers-src \
+    && python3 -m pip freeze | grep -iE '^(torch|torchvision|torchaudio|triton|pytorch-triton-rocm|numpy)==' > /tmp/stack-constraints.txt \
+    && cat /tmp/stack-constraints.txt \
+    && uv pip install --system -c /tmp/stack-constraints.txt ./transformers-src \
          "huggingface-hub>=1.31.0,<2.0" "tokenizers>=0.22.0,<=0.23.0" \
+         av scipy soundfile soxr \
+         "mistral_common[audio]==$(python3 -c 'import importlib.metadata as m; print(m.version("mistral_common"))')" \
     && { python3 -m pip check > /tmp/pip-check.txt 2>&1 || true; } \
     && cat /tmp/pip-check.txt \
     && if grep -v -E '^No broken requirements found\.$|^vllm [^ ]+ (has requirement|requires) transformers[^,]*,? ?[^ ]*, but you have transformers 5\.14\.0\.dev0\.?$|^vllm [^ ]+ (has requirement|requires) tokenizers>=0\.23\.2, but you have tokenizers 0\.2(2\.[0-9]+|3\.0)\.?$|^pygobject [^ ]+ requires pycairo, which is not installed\.$' /tmp/pip-check.txt | grep -q .; then \

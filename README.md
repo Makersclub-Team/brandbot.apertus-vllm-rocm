@@ -1,7 +1,10 @@
 # Apertus 1.5 on ROCm — community integration kit
 
-**Experimental source package. No container build or GPU inference has been run
-for this project. No prebuilt image is published.**
+**Experimental. Built and run once on an AMD Instinct MI350X (gfx950) on
+18 November 2026: Apertus 1.5 8B served text, tool calls and image input; audio
+input failed (fixed since, not yet re-tested on a GPU). MI300X, 70B, tensor
+parallelism and long context are untested. No prebuilt image is published.**
+Details: [validation](docs/VALIDATION.md).
 
 This repository prepares a shareable ROCm build for Apertus 1.5. It builds
 Swiss AI's vLLM branch for Apertus 1.5 with that revision's own ROCm Dockerfiles,
@@ -73,8 +76,9 @@ vLLM directly. This project does not yet provide an installer for adapting an
 arbitrary existing Pod environment; Python source and compiled ROCm extensions
 must be compatible.
 
-No RunPod GPU test has been completed for this project. Record MI300X and MI355X
-validation separately. See [RunPod GPU types](https://docs.runpod.io/references/gpu-types)
+One RunPod test has been completed: a single MI350X (gfx950) with the 8B model,
+recorded in [validation](docs/VALIDATION.md). MI300X (gfx942) is untested; record
+MI300X and MI350X/MI355X validation separately. See [RunPod GPU types](https://docs.runpod.io/references/gpu-types)
 and [Pod limitations](https://docs.runpod.io/pods/overview).
 
 ## Build a local experimental image
@@ -175,9 +179,10 @@ python3 scripts/smoke.py --model apertus-1.5-8b --tools \
 For a separate thinking-mode endpoint, replace the automatic tool flags with
 `--reasoning-parser apertus --default-chat-template-kwargs.enable_thinking true`.
 Combining tools and thinking depends on the exact parser/template versions; it is
-outside this starter package's automated smoke checks. Image/audio correctness,
-long context, tensor parallelism, quantization, and load behavior also require
-separate testing; see [validation](docs/VALIDATION.md).
+outside this starter package's automated smoke checks. One image and one audio
+fixture were checked on an MI350X (see [validation](docs/VALIDATION.md)); long
+context, tensor parallelism, quantization, and load behavior still require
+separate testing.
 
 ## Share the work
 

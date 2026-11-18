@@ -116,6 +116,37 @@ def main() -> int:
             return {"registered_name": "apertus", "class": parser_class.__name__,
                     "module": parser_class.__module__}
 
+        def check_audio() -> dict[str, Any]:
+            # vLLM swaps missing audio packages for placeholders that only fail
+            # when a request carries audio; fail here instead.
+            import io
+
+            import numpy as np
+            import soundfile
+            import soxr
+
+            audio_module = importlib.import_module("vllm.multimodal.audio")
+            placeholder = importlib.import_module("vllm.utils.import_utils").PlaceholderModule
+            missing = [name for name in ("av", "soxr")
+                       if isinstance(getattr(audio_module, name, None), placeholder)]
+            if missing:
+                raise RuntimeError(f"vllm.multimodal.audio is missing {missing}; install vllm[audio].")
+            importlib.import_module("scipy.signal")
+            buffer = io.BytesIO()
+            soundfile.write(buffer, np.zeros(24000, dtype=np.float32), 24000, format="WAV")
+            buffer.seek(0)
+            samples, rate = soundfile.read(buffer, dtype="float32")
+            resampled = soxr.resample(samples, rate, 16000)
+            if len(resampled) != 16000:
+                raise RuntimeError(f"Resampling 1 s of audio gave {len(resampled)} samples, expected 16000.")
+            versions = {name: importlib.metadata.version(name)
+                        for name in ("av", "scipy", "soundfile", "soxr", "mistral_common")}
+            torchaudio_present = not isinstance(getattr(audio_module, "torchaudio", None), placeholder)
+            return {"packages": versions, "torchaudio_present": torchaudio_present,
+                    "wav_decode_and_resample": "24000 Hz -> 16000 Hz"}
+
+        run("vllm.audio_support", check_audio)
+
         run("vllm.apertus_tool_parser", lambda: check_registered_parser(
             "vllm.tool_parsers", "ToolParserManager", "get_tool_parser"))
         run("vllm.apertus_reasoning_parser", lambda: check_registered_parser(
@@ -123,6 +154,7 @@ def main() -> int:
     else:
         not_run("vllm.model_registry", "vLLM could not be imported.")
         not_run("vllm.apertus_model_import", "vLLM could not be imported.")
+        not_run("vllm.audio_support", "vLLM could not be imported.")
         not_run("vllm.apertus_tool_parser", "vLLM could not be imported.")
         not_run("vllm.apertus_reasoning_parser", "vLLM could not be imported.")
 
