@@ -3,24 +3,44 @@
 **Experimental source package. No container build or GPU inference has been run
 for this project. No prebuilt image is published.**
 
-This repository prepares a shareable ROCm build for Apertus 1.5. It reuses Swiss
-AI's pinned vLLM implementation and that revision's own ROCm Dockerfile, then
-installs the matching Transformers source. It is a starting point for integration
-and hardware validation, not a claim of verified MI355X support.
+This repository prepares a shareable ROCm build for Apertus 1.5. It builds
+Swiss AI's vLLM branch for Apertus 1.5 with that revision's own ROCm Dockerfiles,
+then installs the matching Transformers source. It is a starting point for
+integration and hardware validation, not a claim of verified MI355X support.
+
+## Versions
+
+| Component | Pin |
+| --- | --- |
+| vLLM | `swiss-ai/vllm` branch `apertus-1-5` at `640bad3` (29 Oct 2026), the head of [vLLM PR #50496](https://github.com/vllm-project/vllm/pull/50496); based on upstream main between v0.33.0rc3 and v0.34.0 |
+| ROCm | 10.0.0 (AMD TheRock SDK), PyTorch `2.13.0+rocm10.0.0`, from AMD's prebuilt `rocm/vllm-dev:base` (29 Oct 2026, pinned by digest), which matches the pinned source's `docker/Dockerfile.rocm_base` |
+| Transformers | `swiss-ai/transformers` at `3797303` (5.14.0.dev0) |
+
+**Known dependency conflict.** vLLM at this revision declares
+`transformers>=5.16.1,<5.21.0`, but no Transformers revision fits that range and
+matches vLLM's Apertus 1.5 code. That code reads
+`Apertus1p5Config.vision_tokenizer_config` / `audio_tokenizer_config`, which the
+pinned 5.14.0.dev0 revision has. The Apertus 1.5 model merged into
+`huggingface/transformers` on 17 Nov 2026 (5.24.0.dev0) renamed them to
+`vision_config` / `audio_config` and changed the vision tokenizer's `encode()`
+result, so vLLM's code cannot load the model with it. The image build allows
+exactly this one `pip check` conflict and fails on any other. Whether vLLM's
+core works with Transformers 5.14 is unverified: the runtime import check and a
+GPU run will show. Re-pin both when Swiss AI updates PR #50496 to the merged
+Transformers model. Details: `known_dependency_conflicts` in `versions.json`.
 
 ## What is included
 
 - Exact Swiss vLLM and Transformers commits in `versions.json`.
-- A source-build wrapper with an explicit ROCm base-image digest requirement.
+- A source-build wrapper on AMD's matching prebuilt ROCm 10 base (pinned by digest),
+  or on a base built from the pinned source.
 - A thin runtime Dockerfile that preserves the base's ROCm PyTorch installation.
 - Import/GPU diagnostics and basic OpenAI API smoke checks.
 - Source-only CI and clear validation/publication guidance.
 - Apache 2.0 license and upstream attribution.
 
-There is deliberately no selected ROCm base digest: the source branch uses an
-older ROCm build layout, and an arbitrary current base may be incompatible.
-Selecting and validating that dependency combination is the next engineering
-step. The exact source pins come from the [Swiss AI release recipe](https://github.com/swiss-ai/model-launch/blob/main/images/vllm_apertus_1.5_release/Dockerfile).
+The exact source pins originally came from the [Swiss AI release recipe](https://github.com/swiss-ai/model-launch/blob/main/images/vllm_apertus_1.5_release/Dockerfile),
+which still pins the July vLLM revision on CUDA.
 
 ## Get the source
 
@@ -61,36 +81,33 @@ Docker's default builder so the second build can access the intermediate local
 image. Building the source stack needs substantial CPU, RAM, disk, and network
 access. A GPU is not used to validate inference during compilation.
 
-1. Select a ROCm **development** base compatible with the pinned vLLM source,
-   including its PyTorch and compiler requirements. Inspect the upstream
-   [`docker/Dockerfile.rocm_base`](https://github.com/swiss-ai/vllm/blob/a601a9d998ddeb488f0c17e8512874b116aa7658/docker/Dockerfile.rocm_base).
-2. Resolve the actual image digest and set `APERTUS_ROCM_BASE_IMAGE` to its full
-   `repository@sha256:...` reference. A digest makes the selected bytes explicit;
-   it does not establish that the base is compatible.
-3. Preview the plan, then build:
+By default the wrapper builds on AMD's prebuilt ROCm 10 base,
+`rocm/vllm-dev:base`, pinned by digest in `versions.json`. Its image labels list
+the same components as the pinned source's `docker/Dockerfile.rocm_base` (ROCm
+10.0.0, PyTorch 2.13.0, Triton `669b31ac`, AITER v0.1.26, flash-attention
+`0e60e394`, MORI v1.2.3.post1). It then builds the upstream `vllm-openai` target,
+which compiles vLLM's GPU kernels for `--gpu-arch`, and this repository's runtime
+layer. Preview the plan, then build:
 
 ```bash
-python3 scripts/build.py \
-  --base-image "$APERTUS_ROCM_BASE_IMAGE" \
-  --tag apertus-vllm-rocm:experimental \
-  --gpu-arch gfx950 \
-  --dry-run
+python3 scripts/build.py --tag apertus-vllm-rocm:experimental --gpu-arch gfx950 --dry-run
 
-python3 scripts/build.py \
-  --base-image "$APERTUS_ROCM_BASE_IMAGE" \
-  --tag apertus-vllm-rocm:experimental \
-  --gpu-arch gfx950 \
-  --max-jobs 8
+python3 scripts/build.py --tag apertus-vllm-rocm:experimental --gpu-arch gfx950 --max-jobs 32
 ```
 
-The wrapper fetches the pinned source into `.build/vllm`, builds the upstream
-`vllm-openai` target, and adds this repository's runtime layer. It does not push an
-image. The final layer installs Transformers with `--no-deps`; missing dependencies
-or import failures stop the build instead of silently replacing ROCm PyTorch with
-another build. Investigate and pin any required dependency additions.
+`--build-base` builds the base from the pinned source instead (several more hours:
+it compiles Triton, AITER and flash-attention). `--base-image repository@sha256:...`
+uses any other base; a digest makes the selected bytes explicit, it does not
+establish that the base is compatible.
 
-The resulting `.build/build-report.json` records source pins, base digest, and
-local image ID. Upstream build steps still resolve some packages dynamically, so
+The wrapper fetches the pinned source into `.build/vllm`. It does not push an
+image. The final layer installs Transformers with `--no-deps`; missing dependencies,
+any dependency conflict other than the documented one, or import failures stop the
+build instead of silently replacing ROCm PyTorch with another build. Investigate
+and pin any required dependency additions.
+
+The resulting `.build/build-report.json` records source pins, which base was used,
+and the local image ID. Upstream build steps still resolve some packages dynamically, so
 this is not yet a hermetic or bit-for-bit reproducible build. Record the resolved
 dependencies for any release.
 

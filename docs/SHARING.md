@@ -10,7 +10,7 @@ Keep the public repository small: the version manifest, build wrapper, container
 
 An initial source release may be labelled `experimental` or `source-only`. Record the exact dependency revisions and the checks that actually ran. A successful dry run only demonstrates that the wrapper can construct the intended build command; it does not demonstrate compilation or inference.
 
-The wrapper requires a real, compatible ROCm base image by digest through `--base-image`. Its defaults are `--tag apertus-vllm-rocm:experimental`, `--gpu-arch gfx950`, and `--max-jobs 8`; `--dry-run` previews the work. Select and verify the base before attempting a build. A digest ensures repeatability of that input but does not establish compatibility with the pinned vLLM source.
+By default the wrapper uses AMD's prebuilt ROCm 10 base `rocm/vllm-dev:base` at the digest pinned in `versions.json`; `--build-base` builds it from the pinned source and `--base-image` accepts another base by digest. Its defaults are `--tag apertus-vllm-rocm:experimental`, `--gpu-arch gfx950`, and `--max-jobs 8`; `--dry-run` previews the work. State the known Transformers conflict documented in `versions.json` in any release notes.
 
 After a successful build, an OCI image may be published as an **unvalidated experimental build**, accompanied by its digest and build log. Describe a release as tested on a specific GPU only after the relevant runtime tests in [VALIDATION.md](VALIDATION.md) pass on that hardware. Record MI300X (`gfx942`) and MI355X (`gfx950`) results separately. State separately whether 8B, 70B, multimodal requests, tensor parallelism, and concurrency were tested. Compilation for `gfx950` alone is not MI355X validation.
 

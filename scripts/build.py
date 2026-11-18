@@ -3,7 +3,10 @@
 """Build the pinned Swiss vLLM ROCm engine and a thin Apertus runtime layer.
 
 Experimental recipe: no GPU or container build result is implied by this script.
-The caller must choose a compatible ROCm development base by immutable digest.
+By default the ROCm base is AMD's prebuilt rocm/vllm-dev:base, pinned by digest in
+versions.json; its labels match the pinned source's docker/Dockerfile.rocm_base.
+--build-base builds that Dockerfile instead (hours), and --base-image takes any
+other base by immutable digest.
 """
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 IMAGE_DIGEST = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:+-]*@sha256:[0-9a-f]{64}$")
 ARCH = re.compile(r"^gfx[0-9a-z]+(?:;gfx[0-9a-z]+)*$")
+AITER_ARCHES = ("gfx942", "gfx950")
 
 
 def run(argv: list[str], *, capture: bool = False) -> str:
@@ -58,15 +62,22 @@ def prepare_checkout(destination: Path, repository: str, commit: str) -> None:
 def main() -> int:
     versions = load_versions()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-image", required=True,
-                        help="Compatible ROCm development image, including @sha256:<real digest>")
+    base = parser.add_mutually_exclusive_group()
+    base.add_argument("--base-image",
+                      help="ROCm base as repository@sha256:<digest> "
+                           "(default: rocm_base_image in versions.json)")
+    base.add_argument("--build-base", action="store_true",
+                      help="Build the base from the pinned source's docker/Dockerfile.rocm_base "
+                           "instead of using a prebuilt one (compiles Triton, AITER, flash-attention)")
     parser.add_argument("--tag", default="apertus-vllm-rocm:experimental")
     parser.add_argument("--gpu-arch", default=versions["default_gpu_arch"])
     parser.add_argument("--max-jobs", type=int, default=8)
     parser.add_argument("--dry-run", action="store_true",
                         help="Print planned commands without network, Docker, or filesystem changes")
     args = parser.parse_args()
-    if not IMAGE_DIGEST.fullmatch(args.base_image):
+    if not args.build_base and args.base_image is None:
+        args.base_image = versions["rocm_base_image"]
+    if args.base_image is not None and not IMAGE_DIGEST.fullmatch(args.base_image):
         parser.error("--base-image requires an immutable image reference ending @sha256:<64 lowercase hex digits>")
     if not ARCH.fullmatch(args.gpu_arch):
         parser.error("--gpu-arch must be a gfx architecture or semicolon-separated gfx architectures")
@@ -78,11 +89,23 @@ def main() -> int:
     work = ROOT / ".build"
     source = work / "vllm"
     engine_tag = f"apertus-rocm-engine:{versions['vllm_commit'][:12]}"
+    built_base_tag = f"apertus-rocm-base:{versions['vllm_commit'][:12]}"
+    base_image = args.base_image or built_base_tag
+    # The base compiles PyTorch extensions (Triton, AITER, flash-attention) for the
+    # target. AITER supports only gfx942 and gfx950, so it gets the overlap.
+    aiter_arch = ";".join(a for a in args.gpu_arch.split(";") if a in AITER_ARCHES) or "gfx942;gfx950"
+    base_command = None if args.base_image else [
+        "docker", "buildx", "build", "--builder", "default", "--load", "--platform", "linux/amd64",
+        "--file", str(source / "docker/Dockerfile.rocm_base"),
+        "--build-arg", f"PYTORCH_ROCM_ARCH={args.gpu_arch}",
+        "--build-arg", f"AITER_ROCM_ARCH={aiter_arch}",
+        "--tag", built_base_tag, str(source),
+    ]
     engine_command = [
         "docker", "buildx", "build", "--builder", "default", "--load", "--platform", "linux/amd64",
         "--file", str(source / "docker/Dockerfile.rocm"),
         "--target", "vllm-openai",
-        "--build-arg", f"BASE_IMAGE={args.base_image}",
+        "--build-arg", f"BASE_IMAGE={base_image}",
         "--build-arg", f"ARG_PYTORCH_ROCM_ARCH={args.gpu_arch}",
         "--build-arg", f"max_jobs={args.max_jobs}",
         "--build-arg", "NIC_BACKEND=none",
@@ -103,7 +126,10 @@ def main() -> int:
             "source_checkout": str(source),
             "source_repository": versions["vllm_repository"],
             "source_commit": versions["vllm_commit"],
-            "commands": [shlex.join(engine_command), shlex.join(runtime_command)],
+            "base_image": base_image,
+            "base_image_source": ("built-from-pinned-source" if args.build_base else
+                                  "versions.json" if args.base_image == versions["rocm_base_image"] else "external"),
+            "commands": [shlex.join(c) for c in (base_command, engine_command, runtime_command) if c],
             "gpu_validation": "not_run",
         }, indent=2))
         return 0
@@ -116,6 +142,8 @@ def main() -> int:
     run(["docker", "buildx", "inspect", "default"])
     work.mkdir(exist_ok=True)
     prepare_checkout(source, versions["vllm_repository"], versions["vllm_commit"])
+    if base_command:
+        run(base_command)
     run(engine_command)
     run(runtime_command)
     image_id = run(["docker", "image", "inspect", args.tag, "--format", "{{.Id}}"], capture=True)
@@ -123,7 +151,9 @@ def main() -> int:
         "schema_version": 1,
         "built_at_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
         "versions": versions,
-        "base_image": args.base_image,
+        "base_image": base_image,
+        "base_image_source": ("built-from-pinned-source" if args.build_base else
+                                  "versions.json" if args.base_image == versions["rocm_base_image"] else "external"),
         "gpu_arch": args.gpu_arch,
         "image_tag": args.tag,
         "local_image_id": image_id,

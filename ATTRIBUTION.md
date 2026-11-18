@@ -10,7 +10,7 @@ repository.
 
 | Component | Source | License reference |
 | --- | --- | --- |
-| vLLM and Swiss AI integration | https://github.com/swiss-ai/vllm/tree/a601a9d998ddeb488f0c17e8512874b116aa7658 | https://github.com/swiss-ai/vllm/blob/a601a9d998ddeb488f0c17e8512874b116aa7658/LICENSE |
+| vLLM and Swiss AI integration | https://github.com/swiss-ai/vllm/tree/640bad371eed16edfe40665721e8db028481bdbc | https://github.com/swiss-ai/vllm/blob/640bad371eed16edfe40665721e8db028481bdbc/LICENSE |
 | Matching Transformers integration | https://github.com/swiss-ai/transformers/tree/3797303dda74844e3d1f8977ff5518bb91f818b4 | https://github.com/swiss-ai/transformers/blob/3797303dda74844e3d1f8977ff5518bb91f818b4/LICENSE |
 | Official launch recipe used as a technical reference | https://github.com/swiss-ai/model-launch/blob/main/images/vllm_apertus_1.5_release/Dockerfile | https://github.com/swiss-ai/model-launch/blob/main/LICENSE |
 | Apertus model weights, downloaded separately by the user | https://huggingface.co/swiss-ai/Apertus-v1.5-8B and https://huggingface.co/swiss-ai/Apertus-v1.5-70B | Refer to each model's current license and access conditions |

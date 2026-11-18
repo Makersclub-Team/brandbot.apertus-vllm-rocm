@@ -19,14 +19,21 @@ WORKDIR /opt/apertus
 
 # Install only the pinned Transformers source. Preserve the base's ROCm torch.
 # Missing/incompatible Python dependencies must be fixed explicitly; pip check
-# below fails instead of silently replacing the GPU stack.
+# below fails instead of silently replacing the GPU stack. One conflict is known
+# and allowed: vLLM declares transformers>=5.16.1,<5.21.0 while the Transformers
+# revision that matches its Apertus 1.5 code is 5.14.0.dev0 (see
+# known_dependency_conflicts in versions.json). Any other pip check line fails.
 RUN git clone --filter=blob:none --no-checkout \
       "${APERTUS_TRANSFORMERS_REPOSITORY}" transformers-src \
     && git -C transformers-src fetch origin "${APERTUS_TRANSFORMERS_COMMIT}" \
     && git -C transformers-src checkout --detach "${APERTUS_TRANSFORMERS_COMMIT}" \
     && test "$(git -C transformers-src rev-parse HEAD)" = "${APERTUS_TRANSFORMERS_COMMIT}" \
     && uv pip install --system --no-deps ./transformers-src \
-    && python3 -m pip check
+    && { python3 -m pip check > /tmp/pip-check.txt 2>&1 || true; } \
+    && cat /tmp/pip-check.txt \
+    && if grep -v -E '^No broken requirements found\.$|^vllm [^ ]+ (has requirement|requires) transformers[^,]*,? ?[^ ]*, but you have transformers 5\.14\.0\.dev0\.?$' /tmp/pip-check.txt | grep -q .; then \
+         echo "Unexpected dependency conflicts (see above)" >&2; exit 1; \
+       fi
 
 COPY scripts/check_runtime.py /opt/apertus/check_runtime.py
 COPY LICENSE ATTRIBUTION.md /opt/apertus/integration-notices/
