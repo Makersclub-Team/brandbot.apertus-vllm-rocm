@@ -68,11 +68,15 @@ class BuildContractTests(unittest.TestCase):
         self.assertEqual(versions["vllm_branch"], "apertus-1-5")
         self.assertEqual(versions["rocm_sdk_version"], "10.0.0")
         conflicts = versions["known_dependency_conflicts"]
-        self.assertEqual([c["package"] for c in conflicts], ["vllm"])
+        self.assertEqual([c["requires"].split(">")[0].split("<")[0] for c in conflicts],
+                         ["transformers", "tokenizers"])
         # The Dockerfile tolerates exactly the documented Transformers version.
         dockerfile = (ROOT / "Dockerfile").read_text()
         allowed = versions["transformers_version"].replace(".", "\\.")
         self.assertIn("but you have transformers " + allowed, dockerfile)
+        self.assertIn("tokenizers>=0\\.23\\.2, but you have tokenizers", dockerfile)
+        for package, spec in versions["transformers_runtime_pins"].items():
+            self.assertIn(f'"{package}{spec}"', dockerfile)
 
     def test_invalid_architecture_is_rejected(self):
         result = self.invoke("--base-image", "example.invalid/base@sha256:" + "a" * 64,

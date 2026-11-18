@@ -21,7 +21,7 @@ At preparation on **17 November 2026**, and after re-pinning to Swiss AI's `aper
 
 By default `scripts/build.py` uses AMD's prebuilt `rocm/vllm-dev:base` at the digest in `versions.json`; `--build-base` builds it from the pinned source's `docker/Dockerfile.rocm_base` instead. If you pass another base with `--base-image`, use its real digest. Preserve the full build command.
 
-The image deliberately tolerates one `pip check` conflict: vLLM requires `transformers>=5.16.1,<5.21.0`, the pinned Transformers is 5.14.0.dev0 (see `known_dependency_conflicts` in `versions.json`). Treat any vLLM import or model-load error that involves Transformers as possibly caused by this, and record it. `--dry-run` previews commands and performs no image validation. The default `gfx950` target controls compilation; it does not prove that the build or host driver works on MI355X.
+The image deliberately tolerates two `pip check` conflicts (see `known_dependency_conflicts` in `versions.json`): vLLM requires `transformers>=5.16.1,<5.21.0` and `tokenizers>=0.23.2`, while the pinned Transformers is 5.14.0.dev0 and needs `tokenizers<=0.23.0`. Treat any vLLM import, tokenization or model-load error that involves Transformers or tokenizers as possibly caused by this, and record it. `--dry-run` previews commands and performs no image validation. The default `gfx950` target controls compilation; it does not prove that the build or host driver works on MI355X.
 
 For RunPod MI300X testing, compile with `--gpu-arch gfx942` and identify the result as an MI300X run. Validate MI355X separately with `gfx950`.
 

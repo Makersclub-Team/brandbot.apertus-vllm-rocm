@@ -23,10 +23,13 @@ matches vLLM's Apertus 1.5 code. That code reads
 pinned 5.14.0.dev0 revision has. The Apertus 1.5 model merged into
 `huggingface/transformers` on 17 Nov 2026 (5.24.0.dev0) renamed them to
 `vision_config` / `audio_config` and changed the vision tokenizer's `encode()`
-result, so vLLM's code cannot load the model with it. The image build allows
-exactly this one `pip check` conflict and fails on any other. Whether vLLM's
-core works with Transformers 5.14 is unverified: the runtime import check and a
-GPU run will show. Re-pin both when Swiss AI updates PR #50496 to the merged
+result, so vLLM's code cannot load the model with it. The pinned revision also
+refuses to import unless `huggingface-hub<2.0` and `tokenizers<=0.23.0`, so the
+image pins both; vLLM declares `tokenizers>=0.23.2`, a second known conflict.
+The image build allows exactly these two `pip check` conflicts (plus an unrelated
+Ubuntu `pygobject` note) and fails on any other. vLLM, the Apertus 1.5 model
+class and the Apertus tool and reasoning parsers import with these versions;
+whether vLLM serves correctly with them is unverified until a GPU run. Re-pin both when Swiss AI updates PR #50496 to the merged
 Transformers model. Details: `known_dependency_conflicts` in `versions.json`.
 
 ## What is included

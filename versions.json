@@ -35,10 +35,21 @@
       "installed": "transformers 5.14.0.dev0 (pinned commit above)",
       "reason": "No Transformers revision matches both. The vLLM Apertus 1.5 code reads Apertus1p5Config.vision_tokenizer_config and audio_tokenizer_config; Swiss AI's July revision (5.14.0.dev0) has those names. The Apertus 1.5 model merged into huggingface/transformers on 2026-11-17 (65c782bca338, 5.24.0.dev0) renamed them to vision_config and audio_config and returns an output object from the vision tokenizer's encode(), so vLLM's code would fail to load the model with it, and 5.24 is also above vLLM's range.",
       "resolution": "Allowed only for this one requirement in the image build. Re-pin both when Swiss AI updates PR #50496 to the merged Transformers model."
+    },
+    {
+      "package": "vllm",
+      "requires": "tokenizers>=0.23.2",
+      "installed": "tokenizers 0.22.x (resolved from the pinned Transformers' range)",
+      "reason": "The pinned Transformers revision checks its dependency versions at import and raises ImportError with tokenizers 0.23.3 (requires >=0.22.0,<=0.23.0). vLLM's requirement is only declared metadata; with tokenizers 0.22.2 vLLM, the Apertus 1.5 model class, and the Apertus tool and reasoning parsers import and register (2026-11-18 trial in the built engine image).",
+      "resolution": "Allowed in the image build. Whether vLLM's tokenization path needs 0.23 is checked by the GPU serving test. Remove together with the Transformers conflict when re-pinning."
     }
   ],
   "default_gpu_arch": "gfx950",
   "model_weights_bundled": false,
   "container_build_tested": false,
-  "gpu_inference_tested": false
+  "gpu_inference_tested": false,
+  "transformers_runtime_pins": {
+    "huggingface-hub": ">=1.31.0,<2.0",
+    "tokenizers": ">=0.22.0,<=0.23.0"
+  }
 }
