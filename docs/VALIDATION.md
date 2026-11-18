@@ -2,18 +2,18 @@
 
 ## Current status
 
-On **18 November 2026** an image built from this repository at commit `e6c3d7a` ran on one **AMD Instinct MI350X** (RunPod). Apertus 1.5 8B served text, tool calls and image input. Audio input failed because the image lacked vLLM's audio extra; the next commit adds it and a build-time audio check, but that fix has **not yet been re-tested on a GPU**. Nothing else below has been run. Update this document with actual results as each stage completes; never infer a later stage from an earlier one.
+On **18 November 2026** an image built from this repository at commit `e6c3d7a` ran on one **AMD Instinct MI350X** (RunPod). Apertus 1.5 8B served text, tool calls and image input. Audio input failed because the image lacked vLLM's audio extra. Commit `1539243` adds the extra and a build-time audio check; an image built from it ran on a second MI350X the same day and **audio passed**, with text, tool call and image results unchanged. Nothing else below has been run. Update this document with actual results as each stage completes; never infer a later stage from an earlier one.
 
 ## Validation stages
 
 | Stage | Evidence required | Status |
 | --- | --- | --- |
 | Source checks | Build-wrapper argument validation, script syntax, manifest consistency, and inspection of the dry-run command | Passed: offline tests and Python syntax checks; see ../source-checks.json |
-| Image build | Complete successful build log, resolved dependencies, final image digest | Passed for `e6c3d7a` (`--gpu-arch "gfx942;gfx950"`, AMD prebuilt base, 18 Nov 2026) |
-| Runtime imports | `scripts/check_runtime.py` runs inside that exact image | Passed at build time, and with `--require-gpu` on the MI350X |
+| Image build | Complete successful build log, resolved dependencies, final image digest | Passed for `e6c3d7a` and `1539243` (`--gpu-arch "gfx942;gfx950"`, AMD prebuilt base, 18 Nov 2026) |
+| Runtime imports | `scripts/check_runtime.py` runs inside that exact image | Passed at build time, and with `--require-gpu` on the MI350X (`1539243` adds `vllm.audio_support`, passed) |
 | GPU text | Model loads on the intended AMD GPU and produces sensible text through the API | Passed: 8B on MI350X (English and German answers correct) |
 | Tools and streaming | Correct structured tool calls, complete streamed responses, and successful tool-result continuation | Partial: one tool call correct; streaming and tool-result continuation not run |
-| Image and audio | Correct responses to known media fixtures through the documented multimodal API | Image passed (one synthetic fixture). Audio failed on `e6c3d7a` (`Please install vllm[audio]`); fix not yet GPU-tested |
+| Image and audio | Correct responses to known media fixtures through the documented multimodal API | Passed on `1539243`: image (one synthetic fixture) and audio (one synthetic speech clip, `input_audio` and `audio_url`). Audio had failed on `e6c3d7a` (`Please install vllm[audio]`) |
 | Tensor parallelism | Successful model load and requests with the advertised TP configuration | Not run |
 | Concurrency | Recorded overlapping requests complete with the stated context sizes and no unexplained failures | Partial: 16 and 64 concurrent 512-token requests, no errors |
 | MI300X (gfx942) | Any of the above on MI300X | Not run |
@@ -45,6 +45,21 @@ On **18 November 2026** an image built from this repository at commit `e6c3d7a` 
 | Throughput, 512 output tokens, `ignore_eos` | 1 request about 245 tok/s; 16 concurrent about 2,700 tok/s; 64 concurrent about 9,300 tok/s; no errors (measured through the RunPod HTTP proxy, includes network time, no warm-up control) |
 
 Logged warnings, with correct results despite them: `hipblasLt` `HIPBLAS_STATUS_INTERNAL_ERROR` for some GEMM shapes during graph capture; xIELU uses the PyTorch fallback (the fused kernel is CUDA-only); aiter recommends disabling NUMA balancing on the host.
+
+## Result: MI350X audio re-test, 18 November 2026
+
+Same GPU type, host driver, base, versions, model revision and launch command as above, on a new Pod. Image: built from this repository at `1539243` with the 8B weights preloaded; engine digest `sha256:a2323e1dc840f5fa3d300bf94a81c220c3fd8415b45f3b86fd2116ba471bb7ab`.
+
+| Check | Result |
+| --- | --- |
+| `check_runtime.py --require-gpu` | passed (all checks including `vllm.audio_support`, GPU FP32 matmul on gfx950) |
+| Server ready | about 3 minutes after the container started |
+| Audio, `input_audio` (synthetic TTS WAV, 16 kHz mono: "The meeting is moved to Thursday at three o'clock.", "Transcribe this audio exactly.") | "the meeting is moved to thursday at 3 o'clock" |
+| Audio, `audio_url` data URL, same clip | "the meeting is moved to thursday at 3 o'clock" |
+| Audio question ("On which day is the meeting?") | "Thursday" |
+| Chat English, chat German, tool call, image | same answers as the first run |
+
+Additional logged warning: `torchcodec` is not installed, so vLLM decodes audio with its fallback backend; the answers above were correct with it. Throughput and concurrency were not re-measured.
 
 ## Establish the runtime first
 

@@ -1,8 +1,8 @@
 # Apertus 1.5 on ROCm — community integration kit
 
-**Experimental. Built and run once on an AMD Instinct MI350X (gfx950) on
-18 November 2026: Apertus 1.5 8B served text, tool calls and image input; audio
-input failed (fixed since, not yet re-tested on a GPU). MI300X, 70B, tensor
+**Experimental. Built and run on an AMD Instinct MI350X (gfx950) on
+18 November 2026: Apertus 1.5 8B served text, tool calls, image and audio
+input (audio after the fix in `1539243`). MI300X, 70B, tensor
 parallelism and long context are untested. No prebuilt image is published.**
 Details: [validation](docs/VALIDATION.md).
 

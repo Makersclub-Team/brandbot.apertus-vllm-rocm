@@ -47,7 +47,7 @@
   "default_gpu_arch": "gfx950",
   "model_weights_bundled": false,
   "container_build_tested": true,
-  "gpu_inference_tested": "partial: 8B on 1x MI350X (gfx950), 2026-11-18; see docs/VALIDATION.md",
+  "gpu_inference_tested": "partial: 8B on 1x MI350X (gfx950), 2026-11-18 (text, tool call, image; audio from 1539243); see docs/VALIDATION.md",
   "transformers_runtime_pins": {
     "huggingface-hub": ">=1.31.0,<2.0",
     "tokenizers": ">=0.22.0,<=0.23.0"
